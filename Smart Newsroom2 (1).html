@@ -1,0 +1,632 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>Smart Newsroom</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bitter:wght@600;700;800&family=Courier+Prime:wght@400;700&family=IBM+Plex+Mono:wght@500&family=Libre+Franklin:wght@400;500;600;700&family=Newsreader:opsz,wght@6..72,400;6..72,600&display=swap">
+<style>
+/* Layout: persistent left rail (bottom tab bar on phones) + two-pane workspace; every result ends in a review gate. */
+/* Layout: dark masthead + section tabs on top; proof-sheet columns divided by rules; machine text in typewriter face, human-edited text in print face. */
+:root{
+  --bg:#f3f3f0; --surface:#fff; --sunk:#e8e8e4; --line:#cdd0d1; --fg:#15181b; --muted:#565d63;
+  --mast:#15181b; --mast-fg:#f3f2ee; --mast-muted:#a9b0b6; --hot:#ff6b5e;
+  --accent:#b3261e; --accent-fg:#fff; --accent-soft:#f8e2e0;
+  --ai:#1f4a85; --ai-soft:#e9eff8; --ai-line:#9fb6d9;
+  --warn:#7a4e00; --warn-soft:#fbefd2; --ok:#1b6a38; --ok-soft:#dff0e4; --bad:#9c2b2b; --bad-soft:#f6dede;
+  --e-person:#b9e0f7; --e-place:#c5eab3; --e-org:#ffe08a; --e-date:#f6c3e2;
+  --head:'Bitter',Georgia,serif; --serif:'Newsreader',Georgia,serif; --sans:'Libre Franklin',system-ui,sans-serif; --mono:'IBM Plex Mono',ui-monospace,monospace; --type:'Courier Prime','Courier New',monospace;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#121416; --surface:#1a1d20; --sunk:#0e1012; --line:#363b40; --fg:#ecebe6; --muted:#9ea6ad;
+  --mast:#0a0b0c; --accent:#ff8a80; --accent-fg:#1a0907; --accent-soft:#3a1f1d;
+  --ai:#8fb4ee; --ai-soft:#1b2433; --ai-line:#38507a;
+  --warn:#f0c46a; --warn-soft:#3a2f14; --ok:#7fd69b; --ok-soft:#173222; --bad:#f19a9a; --bad-soft:#3b1d1d;
+  --e-person:#1d4560; --e-place:#2c5226; --e-org:#6a5210; --e-date:#5a2a4c; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#121416; --surface:#1a1d20; --sunk:#0e1012; --line:#363b40; --fg:#ecebe6; --muted:#9ea6ad;
+  --mast:#0a0b0c; --accent:#ff8a80; --accent-fg:#1a0907; --accent-soft:#3a1f1d;
+  --ai:#8fb4ee; --ai-soft:#1b2433; --ai-line:#38507a;
+  --warn:#f0c46a; --warn-soft:#3a2f14; --ok:#7fd69b; --ok-soft:#173222; --bad:#f19a9a; --bad-soft:#3b1d1d;
+  --e-person:#1d4560; --e-place:#2c5226; --e-org:#6a5210; --e-date:#5a2a4c; color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--fg);font:15px/1.55 var(--sans)}
+button,input,select,textarea{font:inherit;color:inherit}
+h1,h2,h3{margin:0;text-wrap:balance}
+.app{display:grid;grid-template-columns:232px minmax(0,1fr);min-height:100vh}
+.rail{position:sticky;top:0;height:100vh;padding:20px 14px;display:flex;flex-direction:column;gap:18px;border-right:1px solid var(--line);background:var(--surface)}
+.brand{display:flex;flex-direction:column;gap:2px;padding:0 8px}
+.brand b{font:700 20px/1.1 var(--serif);letter-spacing:-.01em}
+.brand span{font:500 11px var(--mono);color:var(--muted);text-transform:uppercase;letter-spacing:.08em}
+.nav{display:flex;flex-direction:column;gap:2px}
+.nav a{display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:6px;color:var(--fg);text-decoration:none;font-weight:500}
+.nav a svg{width:18px;height:18px;flex:none;stroke:currentColor;fill:none;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+.nav a:hover{background:var(--sunk)}
+.nav a[aria-current="page"]{background:var(--accent-soft);color:var(--accent)}
+.nav .dot{margin-left:auto;width:8px;height:8px;border-radius:50%;background:var(--line)}
+.nav .dot.s-edit{background:var(--warn)}.nav .dot.s-ready{background:var(--ok)}
+.rail-foot{margin-top:auto;display:flex;flex-direction:column;gap:10px;padding:0 8px;font-size:12.5px;color:var(--muted)}
+.main{min-width:0;padding-block:20px 40px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.wrap{max-width:1180px;margin:0 auto;display:flex;flex-direction:column;gap:18px}
+.proto{display:flex;flex-wrap:wrap;gap:8px 14px;align-items:center;padding:8px 12px;border:1px dashed var(--line);border-radius:6px;font-size:13px;color:var(--muted);background:var(--surface)}
+.proto b{font:500 11px var(--mono);text-transform:uppercase;letter-spacing:.08em;color:var(--warn);background:var(--warn-soft);padding:2px 7px;border-radius:3px}
+.proto .sp{flex:1}
+.head{display:flex;flex-wrap:wrap;gap:10px 20px;align-items:flex-end;justify-content:space-between}
+.head h1{font:700 30px/1.15 var(--serif);letter-spacing:-.015em}
+.head p{margin:4px 0 0;color:var(--muted);max-width:60ch}
+.steps{display:flex;gap:6px;flex-wrap:wrap;font:500 11.5px var(--mono);text-transform:uppercase;letter-spacing:.06em}
+.steps span{padding:4px 9px;border-radius:99px;background:var(--sunk);color:var(--muted)}
+.steps span.on{background:var(--accent);color:var(--accent-fg)}
+.steps span.done{background:var(--accent-soft);color:var(--accent)}
+.grid2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;align-items:start}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:8px;min-width:0;display:flex;flex-direction:column}
+.panel>header{display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px;justify-content:space-between;padding:11px 14px;border-bottom:1px solid var(--line)}
+.panel>header h2{font:600 13px var(--sans);text-transform:uppercase;letter-spacing:.07em;color:var(--muted)}
+.panel .body{padding:14px;min-width:0}
+.panel.ai{border-color:var(--ai-line)}
+.panel.ai>header{background:var(--ai-soft);border-bottom-color:var(--ai-line)}
+.tag{display:inline-flex;align-items:center;gap:5px;font:500 11px var(--mono);text-transform:uppercase;letter-spacing:.06em;padding:3px 8px;border-radius:3px}
+.tag.ai{background:var(--ai-soft);color:var(--ai);border:1px solid var(--ai-line)}
+.tag.src{background:var(--sunk);color:var(--muted)}
+.tag.warn{background:var(--warn-soft);color:var(--warn)}
+.tag.ok{background:var(--ok-soft);color:var(--ok)}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:7px;padding:8px 14px;border-radius:6px;border:1px solid var(--line);background:var(--surface);cursor:pointer;font-weight:500;min-height:38px}
+.btn:hover{background:var(--sunk)}
+.btn.primary{background:var(--accent);color:var(--accent-fg);border-color:var(--accent)}
+.btn.primary:hover{filter:brightness(1.08)}
+.btn.sm{padding:4px 10px;min-height:30px;font-size:13px}
+.btn[disabled]{opacity:.5;cursor:not-allowed}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.row{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.field{display:flex;flex-direction:column;gap:5px;min-width:0}
+.field label,.lbl{font:600 12px var(--sans);color:var(--muted);text-transform:uppercase;letter-spacing:.06em}
+input[type=text],select,textarea{width:100%;padding:8px 10px;border:1px solid var(--line);border-radius:6px;background:var(--bg);min-width:0}
+textarea{resize:vertical;line-height:1.55}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:6px;overflow:hidden}
+.seg button{border:0;background:var(--surface);padding:7px 14px;cursor:pointer;font-weight:500;border-right:1px solid var(--line)}
+.seg button:last-child{border-right:0}
+.seg button[aria-pressed="true"]{background:var(--accent);color:var(--accent-fg)}
+.story{font:400 16.5px/1.7 var(--serif);max-width:68ch}
+.story p{margin:0 0 .9em}
+.story .pn{font:500 11px var(--mono);color:var(--muted);margin-right:8px;vertical-align:1px}
+.editable{outline:0;border-radius:4px;padding:2px 4px;margin:-2px -4px}
+.editable:focus{background:var(--bg);box-shadow:0 0 0 2px var(--accent)}
+mark.e{padding:0 2px;border-radius:3px;color:inherit}
+.hl-off mark.e{background:none!important}
+mark.e[data-t=person]{background:var(--e-person)}mark.e[data-t=place]{background:var(--e-place)}
+mark.e[data-t=other],.chip[data-t=other]{background:var(--sunk)}mark.e[data-t=org]{background:var(--e-org)}mark.e[data-t=date]{background:var(--e-date)}
+.legend{display:flex;gap:6px 12px;flex-wrap:wrap;font-size:12.5px;color:var(--muted)}
+.legend i{display:inline-block;width:11px;height:11px;border-radius:3px;margin-right:5px;vertical-align:-1px}
+.ref{font:500 11px var(--mono);background:var(--sunk);color:var(--accent);border:0;border-radius:3px;padding:1px 5px;cursor:pointer;margin-left:3px}
+.ref:hover{background:var(--accent-soft)}
+.flash{animation:fl 1.6s ease-out}
+@keyframes fl{0%,40%{background:var(--warn-soft)}100%{background:transparent}}
+.empty{display:flex;flex-direction:column;align-items:flex-start;gap:8px;padding:26px 14px;color:var(--muted)}
+.empty h3{font:600 17px var(--serif);color:var(--fg)}
+.empty p{margin:0;max-width:44ch}
+.skel{display:flex;flex-direction:column;gap:10px;padding:6px 0}
+.skel i{display:block;height:12px;border-radius:4px;background:linear-gradient(90deg,var(--sunk),var(--line),var(--sunk));background-size:200% 100%;animation:sh 1.2s linear infinite}
+@keyframes sh{to{background-position:-200% 0}}
+.bar{height:6px;border-radius:3px;background:var(--sunk);overflow:hidden}
+.bar i{display:block;height:100%;width:0;background:var(--accent);transition:width .25s}
+ul.clean{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:8px}
+.kp li{display:flex;gap:10px;align-items:flex-start;padding:8px 10px;border:1px solid var(--line);border-radius:6px;background:var(--bg)}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{padding:3px 9px;border-radius:99px;font-size:13px;border:1px solid var(--line)}
+.chip[data-t=person]{background:var(--e-person)}.chip[data-t=place]{background:var(--e-place)}
+.chip[data-t=org]{background:var(--e-org)}.chip[data-t=date]{background:var(--e-date)}
+.review{border:1.5px solid var(--ai-line);border-radius:8px;background:var(--surface);margin-top:2px}
+.review>header{display:flex;flex-wrap:wrap;gap:8px 14px;align-items:center;justify-content:space-between;padding:12px 14px;border-bottom:1px solid var(--line)}
+.review h2{font:700 17px var(--serif)}
+.review .body{display:grid;grid-template-columns:minmax(0,1.3fr) minmax(0,1fr);gap:18px;padding:14px}
+.checks label{display:flex;gap:10px;align-items:flex-start;padding:8px 0;border-bottom:1px solid var(--line);cursor:pointer}
+.checks input{margin-top:4px;width:17px;height:17px;accent-color:var(--accent);flex:none}
+.status{display:inline-flex;gap:6px;align-items:center;font:500 12px var(--mono);text-transform:uppercase;letter-spacing:.05em;padding:4px 10px;border-radius:99px;background:var(--warn-soft);color:var(--warn)}
+.status.ready{background:var(--ok-soft);color:var(--ok)}
+.status.ai{background:var(--ai-soft);color:var(--ai)}
+.note{font-size:13px;color:var(--muted)}
+.callout{padding:10px 12px;border-radius:6px;background:var(--warn-soft);color:var(--warn);font-size:13.5px}
+.toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(84px + env(safe-area-inset-bottom,0px));background:var(--fg);color:var(--bg);padding:9px 16px;border-radius:6px;font-size:14px;z-index:30;max-width:calc(100vw - 32px)}
+.tr-seg{border-bottom:1px solid var(--line);padding:10px 0;display:grid;grid-template-columns:72px 120px minmax(0,1fr);gap:4px 12px;align-items:start}
+.tr-seg:last-child{border-bottom:0}
+.ts{font:500 13px var(--mono);color:var(--accent);background:none;border:0;padding:2px 0;cursor:pointer;text-align:left}
+.ts:hover{text-decoration:underline}
+.spk{font-weight:600;font-size:13.5px}
+.spk input{padding:3px 6px;font-weight:600}
+.low{cursor:pointer;background:var(--warn-soft);border-bottom:2px dotted var(--warn);border-radius:2px;color:inherit;padding:0 1px}
+.tr-seg.active{background:var(--accent-soft);margin:0 -14px;padding-left:14px;padding-right:14px}
+.wave{display:flex;align-items:center;gap:2px;height:44px;flex:1;min-width:160px;cursor:pointer}
+.wave i{flex:1;background:var(--line);border-radius:2px;min-width:2px}
+.wave i.p{background:var(--accent)}
+.ptabs{display:flex;gap:6px}
+.q-item{display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:10px;align-items:center;padding:10px 12px;border:1px solid var(--line);border-radius:6px;background:var(--surface)}
+.tabbar{display:none}
+@media (max-width:860px){
+  .app{grid-template-columns:minmax(0,1fr)}
+  .rail{display:none}
+  .grid2,.review .body{grid-template-columns:minmax(0,1fr)}
+  .head h1{font-size:25px}
+  .main{padding-bottom:96px}
+  .tabbar{display:grid;grid-template-columns:repeat(5,1fr);position:fixed;left:0;right:0;bottom:0;z-index:20;background:var(--surface);border-top:1px solid var(--line);padding:6px max(6px,env(safe-area-inset-right,0px)) calc(6px + env(safe-area-inset-bottom,0px)) max(6px,env(safe-area-inset-left,0px))}
+  .tabbar a{display:flex;flex-direction:column;align-items:center;gap:2px;padding:6px 2px;font-size:11px;color:var(--muted);text-decoration:none;border-radius:6px;font-weight:500}
+  .tabbar a svg{width:20px;height:20px;stroke:currentColor;fill:none;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+  .tabbar a[aria-current="page"]{color:var(--accent);background:var(--accent-soft)}
+  .tr-seg{grid-template-columns:60px minmax(0,1fr)}
+  .tr-seg .spk{grid-column:2}.tr-seg .txt{grid-column:1/-1}
+  .q-item{grid-template-columns:minmax(0,1fr)}
+}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+
+/* ---- proof-sheet treatment ---- */
+body{font:16px/1.55 var(--sans)}
+.app{display:block}.rail{display:none}
+.mast{background:var(--mast);color:var(--mast-fg)}
+.mast-in,.mast-nav{max-width:1180px;margin:0 auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.mast-in{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:baseline;gap:6px 16px;padding-top:calc(16px + env(safe-area-inset-top,0px));padding-bottom:8px}
+.mast .brand{flex-direction:row;align-items:baseline;gap:12px;padding:0}
+.mast .brand b{font:800 27px/1 var(--head);letter-spacing:-.02em;color:var(--mast-fg)}
+.mast .brand span{font:500 13px var(--sans);color:var(--mast-muted)}
+.mast-r{display:flex;gap:14px;align-items:center;font-size:13px;color:var(--mast-muted)}
+.mast .btn{border-color:#59616a;color:var(--mast-fg);min-height:30px;padding:3px 10px;font-size:13px}
+.mast .btn:hover{background:#262b30}
+.mast-nav .nav{flex-direction:row;gap:2px;overflow-x:auto}
+.nav a{border-radius:0;color:var(--mast-muted);padding:10px 16px;border-bottom:3px solid transparent;white-space:nowrap;font-weight:600;font-size:14.5px}
+.nav a svg{display:none}
+.nav a:hover{background:none;color:#fff}
+.nav a[aria-current="page"]{background:none;color:#fff;border-bottom-color:var(--hot)}
+.nav .dot{margin-left:2px;width:7px;height:7px}
+.main{padding-top:18px}
+.proto{border:0;padding:0;background:none;font-size:13px;color:var(--muted);align-items:baseline}
+.proto b{font:700 13px var(--sans);color:var(--accent);background:none;padding:0}
+.dateline{font:700 12px var(--sans);letter-spacing:.1em;text-transform:uppercase;color:var(--accent);margin-bottom:6px}
+.head h1{font:800 38px/1.05 var(--head);letter-spacing:-.025em}
+.head p{font:400 17px/1.45 var(--serif);color:var(--muted)}
+.steps{font:600 13px var(--sans);color:var(--muted)}
+.steps span{background:none;padding:0;border-radius:0}
+.steps span+span::before{content:"/";margin:0 9px;color:var(--line)}
+.steps span.on{color:var(--fg);background:none;text-decoration:underline;text-decoration-color:var(--accent);text-decoration-thickness:2px;text-underline-offset:5px}
+.steps span.done{background:none;color:var(--ok)}
+.panel{background:none;border:0;border-top:3px solid var(--fg);border-radius:0}
+.panel>header{background:none;border-bottom:1px solid var(--line);padding:8px 0}
+.panel>header h2{font:700 18px var(--head);text-transform:none;letter-spacing:0;color:var(--fg)}
+.panel .body{padding:14px 0}
+.panel.ai{border-color:var(--ai)}
+.panel.ai>header{background:none;border-bottom-color:var(--ai-line)}
+.panel[style*="padding:12px 14px"]{background:var(--surface);border:1px solid var(--line);border-top:3px solid var(--fg)}
+.grid2{column-gap:0;row-gap:28px}
+.grid2>.panel{padding:0 28px;border-top:3px solid var(--fg)}
+.grid2>.panel:first-child{padding-left:0}.grid2>.panel:last-child{padding-right:0;border-left:1px solid var(--line)}
+.grid2>.panel.ai{border-top-color:var(--ai)}
+.grid2 .grid2>.panel{padding:0;border-left:0}
+.btn{border-radius:0;border:1.5px solid var(--fg);background:transparent;font-weight:600;font-size:14px}
+.btn:hover{background:var(--sunk)}
+.btn.primary{background:var(--fg);color:var(--bg);border-color:var(--fg)}
+.btn.primary:hover{background:var(--accent);border-color:var(--accent);color:var(--accent-fg);filter:none}
+.btn[disabled]{opacity:.4}
+.seg{border:1.5px solid var(--fg);border-radius:0}.seg button{background:transparent;border-right:1.5px solid var(--fg);font-weight:600}
+.seg button[aria-pressed="true"]{background:var(--fg);color:var(--bg)}
+input[type=text],select,textarea{border-radius:0;background:var(--surface);border:1px solid var(--line);border-bottom:2px solid var(--fg)}
+.lbl,.field label{font:700 12px var(--sans);text-transform:uppercase;letter-spacing:.08em;color:var(--muted)}
+.story{font:400 17px/1.7 var(--serif)}
+.story .pn{font:600 11px var(--sans);color:var(--accent)}
+.tag{font:600 12px var(--sans);border-radius:0;text-transform:none;letter-spacing:0;padding:2px 7px}
+.tag.src{background:none;border:1px solid var(--line);color:var(--muted)}
+.tag.ai,.status.ai{font:700 12px var(--type);text-transform:uppercase;letter-spacing:.08em;background:none;color:var(--ai);border:2px solid var(--ai);border-radius:2px;padding:1px 8px;transform:rotate(-2deg);display:inline-block}
+.status{font:600 13px var(--sans);text-transform:none;letter-spacing:0;border-radius:0;background:var(--warn-soft);color:var(--warn)}
+.status.ready{font:700 12px var(--type);text-transform:uppercase;letter-spacing:.08em;background:none;color:var(--ok);border:2px solid var(--ok);border-radius:2px;padding:1px 8px;transform:rotate(1.5deg)}
+.panel.ai .editable,.panel.ai .ptxt{font-family:var(--type);font-size:.94em}
+.panel.ai .editable.human{font-family:var(--serif);font-size:1em}
+.editable:focus{background:var(--surface);box-shadow:0 0 0 2px var(--accent)}
+mark.e{border-radius:0;padding:0 1px}
+mark.e[data-t=person]{background:linear-gradient(transparent 42%,var(--e-person) 42%)}
+mark.e[data-t=place]{background:linear-gradient(transparent 42%,var(--e-place) 42%)}
+mark.e[data-t=org]{background:linear-gradient(transparent 42%,var(--e-org) 42%)}
+mark.e[data-t=date]{background:linear-gradient(transparent 42%,var(--e-date) 42%)}
+mark.e[data-t=other]{background:linear-gradient(transparent 42%,var(--sunk) 42%)}
+.hl-off mark.e{background:none!important}
+.chip{border-radius:0;border:0;border-bottom:3px solid var(--line);background:none!important;padding:1px 2px;font-weight:500}
+.chip[data-t=person]{border-color:var(--e-person)}.chip[data-t=place]{border-color:var(--e-place)}.chip[data-t=org]{border-color:var(--e-org)}.chip[data-t=date]{border-color:var(--e-date)}
+.chips{gap:6px 14px}
+.kp li{background:none;border:0;border-top:1px solid var(--line);border-radius:0;padding:8px 0}
+.ref{font:700 11px var(--sans);color:var(--accent);background:none;border:1px solid var(--line);border-radius:0}
+.callout{background:none;color:var(--fg);border:0;border-top:1px solid var(--line);border-bottom:1px solid var(--line);border-radius:0;padding:8px 0;font-size:14px;font-family:var(--sans)}
+.callout::before{content:"Note. ";font-weight:700;color:var(--accent)}
+.empty h3{font:700 20px var(--head)}
+.tr-seg.active{background:var(--accent-soft)}
+.ts{color:var(--accent)}
+.low{background:linear-gradient(transparent 55%,var(--warn-soft) 55%);border-bottom:2px dotted var(--warn)}
+.wave i.p{background:var(--accent)}
+.review{background:var(--surface);border:0;border-top:6px double var(--fg);border-radius:0;padding:0 18px 6px}
+.review>header{padding:14px 0 10px}
+.review h2{font:800 24px var(--head);letter-spacing:-.01em}
+.review .body{padding:12px 0}
+.checks input{accent-color:var(--accent);border-radius:0}
+.field #rv-summarise,[id^=rv-]{border:0;border-bottom:2px solid var(--fg);background:none;padding-left:0;font:italic 400 20px var(--serif)}
+.q-item{border-radius:0;border:0;border-top:1px solid var(--line);background:none}
+.toast{border-radius:0}
+@media (max-width:860px){
+  .mast-nav{display:none}
+  .mast .brand b{font-size:23px}
+  .head h1{font-size:30px}
+  .grid2>.panel,.grid2>.panel:first-child,.grid2>.panel:last-child{padding:0;border-left:0}
+  .tabbar{background:var(--mast);border-top:0}
+  .tabbar a{color:var(--mast-muted);border-radius:0}
+  .tabbar a[aria-current="page"]{background:none;color:#fff;box-shadow:inset 0 3px 0 var(--hot)}
+}
+</style>
+<div class="app">
+  <header class="mast">
+    <div class="mast-in"><div class="brand"><b>Smart Newsroom</b><span>Logic Legends</span></div>
+      <div class="mast-r"><span id="mdate"></span><button class="btn" id="themeBtn" type="button">Light / dark</button></div></div>
+    <div class="mast-nav"><nav class="nav" id="nav" aria-label="Tools"></nav></div>
+  </header>
+  <main class="main"><div class="wrap">
+    <div class="proto"><b>Prototype</b><span>Sample content only. Nothing you upload is read or sent to a model, and the stories, names and quotes are made up. Typewriter text is written by the AI and turns to print once you edit it.</span></div>
+    <div id="view"></div>
+  </div></main>
+</div>
+<nav class="tabbar" id="tabbar" aria-label="Tools"></nav>
+<div class="toast" id="toast" hidden role="status"></div>
+<script>
+/* ---------- sample content (fictional) ---------- */
+const ICON={
+ sum:'<path d="M4 6h16M4 12h10M4 18h13"/>',
+ tr:'<path d="M4 5h8M8 3v2M5 9c1.5 3 4 5 7 6M11 9c-1 3-3 5-6 6M13 20l4-9 4 9M14.5 17h5"/>',
+ mic:'<rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/>',
+ pen:'<path d="M4 20l1-4L16 5l3 3L8 19l-4 1zM14 7l3 3"/>',
+ chk:'<path d="M5 12l4 4L19 7"/><rect x="3" y="3" width="18" height="18" rx="3"/>'
+};
+const TOOLS=[
+ {id:'summarise',label:'Summarise',short:'Summarise',icon:'sum',title:'Summarise an article',sub:'Paste or upload an article, pick a length, and check the summary against the source.'},
+ {id:'translate',label:'Translate',short:'Translate',icon:'tr',title:'Translate a story',sub:'English, Shona and Ndebele side by side. Edit the translation before it goes anywhere.'},
+ {id:'transcribe',label:'Transcribe',short:'Transcribe',icon:'mic',title:'Transcribe an interview',sub:'Speaker labels and timestamps. Click a time to jump to it, click text to correct it.'},
+ {id:'draft',label:'News draft',short:'Draft',icon:'pen',title:'Prepare a news draft',sub:'Turn notes and source material into a structured first draft with references.'},
+ {id:'queue',label:'Review queue',short:'Review',icon:'chk',title:'Review queue',sub:'Everything the AI touched, and whether a person has checked it.'}
+];
+const ARTICLE=[
+ 'Stallholders at Mbare Musika say the new vending bays promised by Harare City Council are not ready, weeks after traders were told to start moving.',
+ 'Tendai Moyo, chairperson of the Mbare Traders Forum, told a gathering on Saturday that several bays still have no roofing and no running water. "We were given a date to move, but the site is not finished," she said.',
+ 'A council spokesperson, Farai Ncube, said the relocation timetable was set to reduce crowding near the main bus terminus. He said the council would hold a meeting with traders\' representatives on 12 November.',
+ 'Some traders say they cannot afford to lose trading days while construction continues. A fruit and vegetable seller, Rudo Chikwanha, said she has stayed at her old stand because "customers know where to find me".',
+ 'The forum has asked the council to publish the bay allocation list and to confirm in writing when the site will be completed. The council had not responded to that request at the time of writing.'
+];
+const ENT=[
+ ['Mbare Musika','place'],['Harare City Council','org'],['Tendai Moyo','person'],['Mbare Traders Forum','org'],['Saturday','date'],
+ ['Farai Ncube','person'],['12 November','date'],['Rudo Chikwanha','person'],['Harare','place']
+];
+const SUMMARIES={
+ short:{pts:[
+  ['Traders at Mbare Musika say the new vending bays are not finished, though they were told to begin moving.',[1,2]],
+  ['The council says the timetable aims to reduce crowding and has proposed a meeting on 12 November.',[3]]],
+  kp:[['Bays reportedly lack roofing and running water, according to the traders\' forum chairperson.',[2]],['The forum wants a published allocation list and a written completion date.',[5]]]},
+ medium:{pts:[
+  ['Traders at Mbare Musika say the new vending bays promised by Harare City Council are not ready, though they were told to begin moving.',[1]],
+  ['The Mbare Traders Forum chairperson says several bays have no roofing or running water.',[2]],
+  ['A council spokesperson says the timetable is meant to reduce crowding near the bus terminus, and a meeting with trader representatives is set for 12 November.',[3]],
+  ['The forum has asked for the allocation list and a written completion date. The council had not replied when the article was written.',[5]]],
+  kp:[['Bays reportedly lack roofing and running water (forum chairperson).',[2]],['Council gives crowding near the bus terminus as the reason for the timetable.',[3]],['Some traders are staying at old stands to avoid losing trading days.',[4]],['No council response yet to the forum\'s written request.',[5]]]},
+ long:{pts:[
+  ['Traders at Mbare Musika say the new vending bays promised by Harare City Council are not ready, weeks after they were told to start moving.',[1]],
+  ['At a Saturday gathering, the Mbare Traders Forum chairperson said several bays have no roofing and no running water.',[2]],
+  ['A council spokesperson said the relocation timetable aims to reduce crowding near the main bus terminus. A meeting with traders\' representatives is planned for 12 November.',[3]],
+  ['Some traders, including a fruit and vegetable seller, say they cannot afford lost trading days and have stayed at their old stands.',[4]],
+  ['The forum has asked the council to publish the bay allocation list and confirm in writing when the site will be completed. The council had not responded at the time of writing.',[5]]],
+  kp:[['Bays reportedly lack roofing and running water (forum chairperson).',[2]],['Council gives crowding near the bus terminus as the reason for the timetable.',[3]],['Meeting with trader representatives planned for 12 November (council spokesperson).',[3]],['Some traders are staying at old stands to avoid losing trading days.',[4]],['Forum wants a published allocation list and a written completion date.',[5]]]}
+};
+const TR={
+ en:['Stallholders at Mbare Musika say the new vending bays are not ready.','The council says the timetable is meant to reduce crowding near the bus terminus.','A meeting with traders\' representatives is planned for 12 November.'],
+ sn:['Vatengesi vekuMbare Musika vanoti nzvimbo itsva dzekutengesera hadzisati dzagadzirwa.','Gunya redhorobha rinoti nguva yekutama yakagadzirirwa kuderedza kuwandisa kwevanhu padhuze nepamabhazi.','Musangano nevamiriri vevatengesi wakarongwa musi wa12 Mbudzi.'],
+ nd:['Abathengisi eMbare Musika bathi izindawo ezintsha zokuthengisa azikalungiswa.','Umkhandlu uthi isikhathi sokufuduka sibekelwe ukunciphisa ukuminyana eduze kwesiteshi samabhasi.','Umhlangano labamele abathengisi uhlelelwe ngomhla ka-12 Mbasa.']
+};
+const TRNOTES={
+ sn:[['musi wa12 Mbudzi','Month name should be checked: Shona month names vary by publication style (Mbudzi is commonly November).'],['Gunya redhorobha','"Council" has several Shona renderings. Confirm the house style.']],
+ nd:[['ngomhla ka-12 Mbasa','Month name needs a fluent-speaker check (Mbasa is commonly used for November in Ndebele).'],['Umkhandlu','Confirm preferred term for "council" in house style.']],
+ en:[]
+};
+const LANG={en:'English',sn:'Shona',nd:'Ndebele'};
+const SAMPLES={
+ a:{name:'Sample A: Mbare traders interview',dur:'2:10',segs:[
+  [0,'Reporter','Thanks for speaking with us. Can you tell me what the situation is at the new bays?'],
+  [9,'Tendai Moyo','Well, we were given a date to move, but the site is not finished. Some bays have no <l>roofing</l> yet.'],
+  [24,'Reporter','And what about water and electricity?'],
+  [31,'Tendai Moyo','There is no running water that we have seen. On the <l>electricity, I cannot say</l>, we have not been told.'],
+  [47,'Reporter','What are you asking the council to do?'],
+  [53,'Tendai Moyo','Publish the allocation list and tell us <l>in writing</l> when the site will be completed. Traders cannot plan without a date.'],
+  [78,'Reporter','Has the council responded to that request?'],
+  [84,'Tendai Moyo','Not yet. We are waiting for the meeting on the <l>twelfth</l>.']]},
+ b:{name:'Sample B: Council spokesperson call',dur:'1:35',segs:[
+  [0,'Reporter','Why was the relocation timetable set when it was?'],
+  [7,'Farai Ncube','The aim is to reduce crowding near the main <l>bus terminus</l>. The timetable can be reviewed with traders.'],
+  [26,'Reporter','Will the allocation list be made public?'],
+  [32,'Farai Ncube','I will <l>need to confirm that</l> with the department and come back to you.'],
+  [51,'Reporter','Can you confirm a date for the meeting?'],
+  [57,'Farai Ncube','We are proposing the twelfth of November, at the council offices. Traders\' representatives will be invited.']]}
+};
+const NOTES=`NOTES (reporter, Saturday visit)
+- Mbare Musika, new vending bays not finished; several have no roofing, no running water (forum chair Tendai Moyo, on record)
+- Council spokesperson Farai Ncube: timetable meant to reduce crowding near bus terminus; meeting with traders' reps 12 Nov
+- Rudo Chikwanha (fruit/veg seller): staying at old stand, "customers know where to find me"
+- Forum asked council for allocation list + written completion date. No reply yet.
+- TODO: check bay count with council, photos of site, ask about electricity`;
+const SOURCES=[
+ ['S1','Reporter notes, Saturday visit','Own notes'],
+ ['S2','Interview: Tendai Moyo (sample A)','Transcript, 0:09 to 1:30'],
+ ['S3','Call: Farai Ncube (sample B)','Transcript, 0:07 to 0:57'],
+ ['S4','Forum request to council','Document, not yet seen by reporter']
+];
+/* ---------- state + helpers ---------- */
+const $=(s,r=document)=>r.querySelector(s), $$=(s,r=document)=>[...r.querySelectorAll(s)];
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const svg=k=>`<svg viewBox="0 0 24 24" aria-hidden="true">${ICON[k]}</svg>`;
+const S={
+ summarise:{len:'medium',phase:'empty',hl:true,text:ARTICLE.join('\n\n'),file:'',edited:null},
+ translate:{from:'en',to:'sn',phase:'empty',text:null,out:null,custom:false},
+ transcribe:{sample:'a',phase:'empty',file:'',segs:null,pos:0,playing:false,fixes:0},
+ draft:{phase:'empty',notes:NOTES,headline:'',location:'Mbare, Harare',tone:'neutral',facts:['Traders say new vending bays are not finished (forum chairperson, on record).','Council says the timetable aims to reduce crowding near the bus terminus.','Meeting with traders\' representatives proposed for 12 November.','Forum has asked for an allocation list and written completion date; no council reply yet.'],out:null}
+};
+const CHECKS={
+ summarise:['I read the summary against the source text and it does not add claims.','Names, titles and spellings match the source.','Quotes are exact, or marked as paraphrase.'],
+ translate:['A fluent reader of the target language has reviewed the translation.','Names, places and numbers match the original.','Terms of office and legal terms follow house style.'],
+ transcribe:['I listened to the audio against the transcript for every quote I plan to use.','Speaker labels are correct.','Highlighted low-confidence words are corrected or removed.'],
+ draft:['Each fact in the draft traces to a source reference.','Items marked "needs verification" are confirmed or removed.','Quotes are checked against the transcript or notes.','The right of reply has been offered where the draft makes claims about a party.']
+};
+const R={}; Object.keys(CHECKS).forEach(k=>R[k]={checks:CHECKS[k].map(()=>false),reviewer:'',status:'none',signed:''});
+function toast(m){const t=$('#toast');t.textContent=m;t.hidden=false;clearTimeout(toast.t);toast.t=setTimeout(()=>t.hidden=true,2600)}
+function statusLabel(s){return {none:'Nothing yet',ai:'AI draft, not yet checked',editing:'Edited, needs a check',ready:'Checked by a person'}[s]}
+function setStatus(k,s){R[k].status=s;refreshNav();const e=$('#rev-'+k);if(e)renderReview(k);const st=$('#st-'+k);if(st)st.innerHTML=stepsHtml(k)}
+function markEdited(k){if(R[k].status==='ai'||R[k].status==='ready'){if(R[k].status==='ready'){R[k].checks=R[k].checks.map(()=>false);R[k].signed=''}setStatus(k,'editing')}}
+function stepsHtml(k){const s=R[k].status,i={none:-1,ai:0,editing:1,ready:3}[s];
+ return ['AI draft','Edited','Checked','Ready for desk'].map((t,n)=>`<span class="${n<i||(s==='ready'&&n<=3)?'done':n===i?'on':''}">${t}</span>`).join('')}
+function copy(text){navigator.clipboard?.writeText(text).then(()=>toast('Copied'),()=>toast('Select the text and copy it manually')).catch?.(()=>{})}
+function refreshNav(){
+ const cur=location.hash.slice(1)||'summarise';
+ const dot=id=>{if(id==='queue')return '';const s=R[id].status;return `<span class="dot ${s==='ready'?'s-ready':(s==='ai'||s==='editing')?'s-edit':''}" title="${statusLabel(s)}"></span>`};
+ $('#nav').innerHTML=TOOLS.map(t=>`<a href="#${t.id}" ${t.id===cur?'aria-current="page"':''}>${svg(t.icon)}${t.label}${dot(t.id)}</a>`).join('');
+ $('#tabbar').innerHTML=TOOLS.map(t=>`<a href="#${t.id}" ${t.id===cur?'aria-current="page"':''}>${svg(t.icon)}${t.short}</a>`).join('');
+}
+function renderReview(k){
+ const r=R[k],box=$('#rev-'+k);if(!box)return;
+ const all=r.checks.every(Boolean),can=all&&r.reviewer.trim().length>1&&r.status!=='none';
+ const ready=r.status==='ready';
+ box.innerHTML=`<header><div><h2>Desk check</h2><div class="note">The AI wrote this. It has not been fact-checked.</div></div><span class="status ${ready?'ready':'ai'}">${statusLabel(r.status)}</span></header>
+ <div class="body"><div class="checks"><div class="lbl">Checklist</div>${CHECKS[k].map((c,i)=>`<label><input type="checkbox" data-rc="${k}:${i}" ${r.checks[i]?'checked':''} ${r.status==='none'?'disabled':''}><span>${c}</span></label>`).join('')}</div>
+ <div style="display:flex;flex-direction:column;gap:10px"><div class="field"><label for="rv-${k}">Signed</label><input type="text" id="rv-${k}" data-rn="${k}" value="${esc(r.reviewer)}" placeholder="Your name" autocomplete="off"></div>
+ <button class="btn primary" type="button" data-sign="${k}" ${can&&!ready?'':'disabled'}>${ready?'Passed to the desk':'Pass to the desk'}</button>
+ <div class="note">${ready?`Checked by ${esc(r.reviewer)}. Nothing is published from this prototype. Edit again and the check starts over.`:r.status==='none'?'Nothing to check yet.':!all?'Work through the checklist first.':!r.reviewer.trim()?'Put your name to it.':'Your name here means you checked it yourself.'}</div></div></div>`;
+}
+document.addEventListener('change',e=>{const c=e.target.dataset?.rc;if(c){const[k,i]=c.split(':');R[k].checks[i]=e.target.checked;renderReview(k)}});
+document.addEventListener('input',e=>{if(e.target.classList?.contains('editable'))e.target.classList.add('human');const k=e.target.dataset?.rn;if(k){R[k].reviewer=e.target.value;const b=$(`[data-sign="${k}"]`),all=R[k].checks.every(Boolean);if(b&&R[k].status!=='ready')b.disabled=!(all&&e.target.value.trim().length>1)}});
+document.addEventListener('click',e=>{const k=e.target.closest('[data-sign]')?.dataset.sign;if(k&&!e.target.closest('button').disabled){R[k].signed=new Date().toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'});setStatus(k,'ready');toast('Passed to the desk by '+R[k].reviewer)}});
+const skel=n=>`<div class="skel" aria-busy="true" aria-label="Working">${Array.from({length:n},(_,i)=>`<i style="width:${95-i*9}%"></i>`).join('')}</div>`;
+const aiTag='<span class="tag ai">AI-generated</span>';
+/* ---------- Summarise ---------- */
+const sentences=t=>(t.match(/[^.!?]+[.!?]+["')\]]*|[^.!?]+$/g)||[]).map(s=>s.trim()).filter(Boolean);
+function analyse(text,len){
+ const paras=text.split(/\n\s*\n|\n/).map(s=>s.trim()).filter(Boolean);
+ if(text.trim()===ARTICLE.join('\n\n')) return {paras,sample:true,pts:SUMMARIES[len].pts,kp:SUMMARIES[len].kp,ents:ENT};
+ const all=[];paras.forEach((p,i)=>sentences(p).forEach(s=>all.push([s,[i+1]])));
+ const n={short:2,medium:3,long:5}[len];
+ const found=new Set();(text.match(/\b[A-Z][a-z]+(?:\s[A-Z][a-z]+)+\b/g)||[]).forEach(x=>found.add(x));
+ return {paras,sample:false,pts:all.slice(0,n),kp:all.slice(n,n+3),ents:[...found].slice(0,8).map(x=>[x,'other'])};
+}
+function hlPara(p,ents){let h=esc(p);ents.forEach(([n,t])=>{const e=esc(n);h=h.split(e).join(`\u0001${t}\u0002${e}\u0003`)});
+ return h.replace(/\u0001(\w+)\u0002/g,'<mark class="e" data-t="$1">').replace(/\u0003/g,'</mark>')}
+function viewSummarise(){
+ const s=S.summarise,tl=TOOLS[0];
+ const out=s.phase==='done'?s.res:null;
+ const srcBody=s.phase==='done'
+  ?`<div class="story ${s.hl?'':'hl-off'}" id="srcRead">${out.paras.map((p,i)=>`<p id="sp${i+1}"><span class="pn">¶${i+1}</span>${hlPara(p,out.ents)}</p>`).join('')}</div>`
+  :`<div class="field"><label for="sumText">Article text</label><textarea id="sumText" rows="14">${esc(s.text)}</textarea></div>`;
+ const outBody=s.phase==='empty'?`<div class="empty"><h3>No summary yet</h3><p>Pick a length and press Summarise. Each point will link back to the paragraph it came from.</p></div>`
+  :s.phase==='loading'?`<div class="body">${skel(6)}<div class="note">Reading the article…</div></div>`
+  :`<div class="body" style="display:flex;flex-direction:column;gap:16px">
+    ${out.sample?'':`<div class="callout">Prototype note: your own text was summarised with a basic first-sentences method, not a language model. Entities are capitalised-word matches and are not classified.</div>`}
+    <section><div class="lbl" style="margin-bottom:6px">Summary (editable)</div><ul class="clean story" style="font-size:16px" id="sumPts">${out.pts.map(([t,r])=>`<li><span class="editable" contenteditable="true" data-edit="summarise" spellcheck="true">${esc(t)}</span>${r.map(n=>`<button class="ref" type="button" data-ref="${n}" aria-label="Show source paragraph ${n}">¶${n}</button>`).join('')}</li>`).join('')}</ul></section>
+    <section><div class="lbl" style="margin-bottom:6px">Key points</div><ul class="clean kp">${out.kp.map(([t,r])=>`<li><span style="flex:1"><span class="editable" contenteditable="true" data-edit="summarise">${esc(t)}</span>${(r||[]).map(n=>`<button class="ref" type="button" data-ref="${n}">¶${n}</button>`).join('')}</span></li>`).join('')}</ul></section>
+    <section><div class="lbl" style="margin-bottom:6px">Named entities found</div><div class="chips">${out.ents.map(([n,t])=>`<span class="chip" data-t="${t}">${esc(n)}</span>`).join('')}</div><p class="note" style="margin:8px 0 0">Entity matching can miss or mislabel names. Check spellings and titles against your own notes.</p></section>
+   </div>`;
+ return `${head(tl,'summarise')}
+ <div class="panel" style="padding:12px 14px"><div class="row">
+  <span class="lbl">Summary length</span><div class="seg" role="group" aria-label="Summary length">${['short','medium','long'].map(l=>`<button type="button" aria-pressed="${s.len===l}" data-len="${l}">${{short:'Short',medium:'Medium',long:'Long'}[l]}</button>`).join('')}</div>
+  <label class="btn" for="sumFile" style="cursor:pointer">Upload file</label><input id="sumFile" type="file" accept=".txt,.md,.pdf,.docx" hidden>
+  ${s.file?`<span class="tag src">${esc(s.file)}</span>`:''}
+  <button class="btn" type="button" id="sumSample">Use sample article</button>
+  <span style="flex:1"></span>
+  ${s.phase==='done'?`<button class="btn" type="button" id="sumHl">${s.hl?'Hide':'Show'} entity marks</button><button class="btn" type="button" id="sumEdit">Edit source</button>`:''}
+  <button class="btn primary" type="button" id="sumGo" ${s.phase==='loading'?'disabled':''}>${s.phase==='done'?'Summarise again':'Summarise'}</button></div>
+  ${s.phase==='done'?`<div class="legend" style="margin-top:10px"><span><i style="background:var(--e-person)"></i>Person</span><span><i style="background:var(--e-place)"></i>Place</span><span><i style="background:var(--e-org)"></i>Organisation</span><span><i style="background:var(--e-date)"></i>Date</span></div>`:''}
+ </div>
+ <div class="grid2">
+  <section class="panel"><header><h2>Source text</h2><span class="tag src">${s.phase==='done'?'Read only':'Your input'}</span></header><div class="body">${srcBody}</div></section>
+  <section class="panel ${s.phase==='done'?'ai':''}"><header><h2>Summary</h2>${s.phase==='done'?`${aiTag}<button class="btn sm" type="button" id="sumCopy">Copy</button>`:'<span class="tag src">Waiting</span>'}</header>${outBody}</section>
+ </div>
+ <div class="review" id="rev-summarise"></div>`;
+}
+function head(t,k){return `<div class="head"><div><div class="dateline">${t.label}</div><h1>${t.title}</h1><p>${t.sub}</p></div><div class="steps" id="st-${k}">${stepsHtml(k)}</div></div>`}
+function bindSummarise(){
+ const s=S.summarise;
+ $$('[data-len]').forEach(b=>b.onclick=()=>{s.len=b.dataset.len;if(s.phase==='done')runSum();else route()});
+ $('#sumSample').onclick=()=>{s.text=ARTICLE.join('\n\n');s.file='';s.phase='empty';R.summarise.status='none';route()};
+ $('#sumFile').onchange=e=>{const f=e.target.files[0];if(!f)return;s.file=f.name;
+  if(/\.(txt|md)$/i.test(f.name)){const fr=new FileReader();fr.onload=()=>{s.text=String(fr.result);s.phase='empty';route();toast('Text loaded')};fr.readAsText(f)}
+  else{toast('Prototype reads .txt and .md only. Sample text kept.');route()}};
+ $('#sumGo').onclick=()=>{const ta=$('#sumText');if(ta)s.text=ta.value;if(!s.text.trim()){toast('Paste an article first');return}runSum()};
+ const hl=$('#sumHl');if(hl)hl.onclick=()=>{s.hl=!s.hl;route()};
+ const ed=$('#sumEdit');if(ed)ed.onclick=()=>{s.phase='empty';R.summarise.status='none';route()};
+ const cp=$('#sumCopy');if(cp)cp.onclick=()=>copy($$('[data-edit="summarise"]').map(e=>e.innerText).join('\n'));
+ $$('[data-ref]').forEach(b=>b.onclick=()=>{const p=$('#sp'+b.dataset.ref);if(p){p.scrollIntoView({behavior:'smooth',block:'center'});p.classList.remove('flash');void p.offsetWidth;p.classList.add('flash')}});
+ $$('[data-edit="summarise"]').forEach(e=>e.oninput=()=>markEdited('summarise'));
+ renderReview('summarise');
+}
+function runSum(){const s=S.summarise;s.phase='loading';s.res=null;route();
+ setTimeout(()=>{s.res=analyse(s.text,s.len);s.phase='done';setStatus('summarise','ai');route()},1300)}
+
+/* ---------- Translate ---------- */
+const TRSRC=()=>{const t=S.translate;return t.custom?t.text:TR[t.from].join('\n')};
+function viewTranslate(){
+ const t=S.translate,tl=TOOLS[1];
+ const srcLines=TRSRC().split('\n');
+ const opts=v=>Object.entries(LANG).map(([k,n])=>`<option value="${k}" ${v===k?'selected':''}>${n}</option>`).join('');
+ let out;
+ if(t.phase==='empty')out=`<div class="empty"><h3>No translation yet</h3><p>Pick the languages and press Translate. The result sits next to the original so you can compare line by line.</p></div>`;
+ else if(t.phase==='loading')out=`<div class="body">${skel(5)}<div class="note">Translating…</div></div>`;
+ else if(t.phase==='unsupported')out=`<div class="empty"><h3>Sample story only</h3><p>This prototype can only translate its sample story. Your text was left as it is and nothing was sent anywhere.</p><button class="btn" type="button" id="trLoad">Load the sample story</button></div>`;
+ else out=`<div class="body" style="display:flex;flex-direction:column;gap:14px"><div class="callout">Machine translation. Have a fluent Shona or Ndebele speaker read it, and check it against house style, before it goes anywhere.</div>
+  <div class="lbl">Translation (editable)</div>${t.out.map(l=>`<p class="story" style="margin:0"><span class="editable" contenteditable="true" data-edit="translate" lang="${t.to}">${esc(l)}</span></p>`).join('')}
+  ${(TRNOTES[t.to]||[]).length?`<div><div class="lbl" style="margin-bottom:6px">Terms to double-check</div><ul class="clean">${TRNOTES[t.to].map(([a,b])=>`<li class="note"><b style="color:var(--fg)">${esc(a)}</b>. ${esc(b)}</li>`).join('')}</ul></div>`:''}</div>`;
+ return `${head(tl,'translate')}
+ <div class="panel" style="padding:12px 14px"><div class="row">
+  <div class="field" style="min-width:140px"><label for="trFrom">From</label><select id="trFrom">${opts(t.from)}</select></div>
+  <button class="btn" type="button" id="trSwap" aria-label="Swap languages" style="align-self:flex-end">⇄ Swap</button>
+  <div class="field" style="min-width:140px"><label for="trTo">To</label><select id="trTo">${opts(t.to)}</select></div>
+  <span style="flex:1"></span><button class="btn primary" type="button" id="trGo" style="align-self:flex-end" ${t.phase==='loading'?'disabled':''}>${t.phase==='done'?'Translate again':'Translate'}</button></div></div>
+ <div class="grid2">
+  <section class="panel"><header><h2>Original · ${LANG[t.from]}</h2><span class="tag src">Your input</span></header><div class="body">
+   ${t.phase==='done'?`<div class="story" lang="${t.from}">${srcLines.map(l=>`<p>${esc(l)}</p>`).join('')}</div>`:`<div class="field"><label for="trText">Text to translate</label><textarea id="trText" rows="9" lang="${t.from}">${esc(TRSRC())}</textarea></div>`}</div></section>
+  <section class="panel ${t.phase==='done'?'ai':''}"><header><h2>Translation · ${LANG[t.to]}</h2>${t.phase==='done'?`${aiTag}<button class="btn sm" id="trCopy" type="button">Copy</button>`:'<span class="tag src">Waiting</span>'}</header>${out}</section>
+ </div><div class="review" id="rev-translate"></div>`;
+}
+function bindTranslate(){
+ const t=S.translate;
+ const sync=()=>{const ta=$('#trText');if(ta){const v=ta.value;if(v!==TR[t.from].join('\n')){t.custom=true;t.text=v}else t.custom=false}};
+ $('#trFrom').onchange=e=>{sync();t.from=e.target.value;if(t.from===t.to)t.to=Object.keys(LANG).find(k=>k!==t.from);if(!t.custom)t.text=null;t.phase='empty';R.translate.status='none';route()};
+ $('#trTo').onchange=e=>{sync();t.to=e.target.value;if(t.from===t.to)t.from=Object.keys(LANG).find(k=>k!==t.to);t.phase='empty';R.translate.status='none';route()};
+ $('#trSwap').onclick=()=>{sync();[t.from,t.to]=[t.to,t.from];if(!t.custom)t.text=null;t.phase='empty';R.translate.status='none';route()};
+ $('#trGo').onclick=()=>{sync();t.phase='loading';route();setTimeout(()=>{if(t.custom){t.phase='unsupported';R.translate.status='none'}else{t.out=[...TR[t.to]];t.phase='done';setStatus('translate','ai')}route()},1200)};
+ const ld=$('#trLoad');if(ld)ld.onclick=()=>{t.custom=false;t.text=null;t.phase='empty';route()};
+ const cp=$('#trCopy');if(cp)cp.onclick=()=>copy($$('[data-edit="translate"]').map(e=>e.innerText).join('\n'));
+ $$('[data-edit="translate"]').forEach(e=>e.oninput=()=>markEdited('translate'));
+ renderReview('translate');
+}
+/* ---------- Transcribe ---------- */
+const DURS={a:130,b:95};
+const fmt=s=>`${Math.floor(s/60)}:${String(Math.floor(s%60)).padStart(2,'0')}`;
+let playTimer=null;
+const BARS=Array.from({length:60},(_,i)=>18+Math.round(Math.abs(Math.sin(i*1.7)*Math.cos(i*.45))*70));
+function viewTranscribe(){
+ const t=S.transcribe,tl=TOOLS[2],sm=SAMPLES[t.sample],dur=DURS[t.sample];
+ let body;
+ if(t.phase==='empty')body=`<div class="empty"><h3>No transcript yet</h3><p>Pick a sample recording or upload one, then press Transcribe.</p></div>`;
+ else if(t.phase==='loading')body=`<div class="body"><div class="bar"><i id="trBar"></i></div><div class="note" style="margin:8px 0 12px">Transcribing the sample. No audio is read.</div>${skel(6)}</div>`;
+ else body=`<div class="body"><div class="callout" style="margin-bottom:10px">Machine transcript. Dotted words are ones the system was unsure of. Listen, fix them, then click the word to clear the mark.</div>
+  <div id="segs">${t.segs.map((g,i)=>`<div class="tr-seg" data-i="${i}"><button class="ts" type="button" data-seek="${g[0]}" aria-label="Jump to ${fmt(g[0])}">${fmt(g[0])}</button><div class="spk"><input type="text" value="${esc(g[1])}" data-spk="${i}" aria-label="Speaker label"></div><div class="txt story" style="font-size:15.5px;max-width:none"><span class="editable${g[3]?' human':''}" contenteditable="true" data-seg="${i}" data-edit="transcribe">${g[2]}</span></div></div>`).join('')}</div></div>`;
+ const done=t.phase==='done';
+ return `${head(tl,'transcribe')}
+ <div class="panel" style="padding:12px 14px"><div class="row">
+  <div class="field" style="min-width:240px;flex:1"><label for="trSample">Sample recording</label><select id="trSample">${Object.entries(SAMPLES).map(([k,v])=>`<option value="${k}" ${t.sample===k?'selected':''}>${v.name} (${v.dur})</option>`).join('')}</select></div>
+  <label class="btn" for="auFile" style="cursor:pointer;align-self:flex-end">Upload audio</label><input id="auFile" type="file" accept="audio/*" hidden>
+  ${t.file?`<span class="tag src" style="align-self:flex-end">${esc(t.file)}</span>`:''}
+  <button class="btn primary" type="button" id="auGo" style="align-self:flex-end" ${t.phase==='loading'?'disabled':''}>${done?'Transcribe again':'Transcribe'}</button></div>
+  ${t.file?`<p class="note" style="margin:8px 0 0">Uploaded audio is not read in this prototype. The sample transcript is shown instead.</p>`:''}</div>
+ ${done?`<div class="panel"><div class="body row"><button class="btn" type="button" id="auPlay" style="min-width:92px">${t.playing?'Pause':'Play'}</button><div class="wave" id="wave" role="slider" aria-label="Position" aria-valuemin="0" aria-valuemax="${dur}" aria-valuenow="${Math.floor(t.pos)}" tabindex="0">${BARS.map((h,i)=>`<i style="height:${h}%" data-b="${i}" class="${i/BARS.length<=t.pos/dur?'p':''}"></i>`).join('')}</div><span class="ts" style="white-space:nowrap" id="auTime">${fmt(t.pos)} / ${fmt(dur)}</span></div><div class="note" style="padding:0 14px 12px">Playback is simulated: the marker moves but there is no sound.</div></div>`:''}
+ <section class="panel ${done?'ai':''}"><header><h2>Transcript · ${esc(sm.name)}</h2>${done?`${aiTag}<span class="note" id="trCount"></span><button class="btn sm" type="button" id="trCopyT">Copy</button>`:'<span class="tag src">Waiting</span>'}</header>${body}</section>
+ <div class="review" id="rev-transcribe"></div>`;
+}
+function updatePlay(){
+ const t=S.transcribe,dur=DURS[t.sample];
+ $$('#wave i').forEach((b,i)=>b.classList.toggle('p',i/BARS.length<=t.pos/dur));
+ const tm=$('#auTime');if(tm)tm.textContent=`${fmt(t.pos)} / ${fmt(dur)}`;
+ let act=-1;t.segs?.forEach((g,i)=>{if(g[0]<=t.pos)act=i});
+ $$('.tr-seg').forEach((e,i)=>e.classList.toggle('active',i===act&&(t.playing||t.pos>0)));
+}
+function updateCount(){const c=$('#trCount');if(!c)return;const low=$$('.low').length;c.textContent=`${S.transcribe.fixes} corrected · ${low} uncheckeded`}
+function stopPlay(){clearInterval(playTimer);S.transcribe.playing=false}
+function bindTranscribe(){
+ const t=S.transcribe;
+ $('#trSample').onchange=e=>{stopPlay();t.sample=e.target.value;t.phase='empty';t.segs=null;t.pos=0;R.transcribe.status='none';route()};
+ $('#auFile').onchange=e=>{const f=e.target.files[0];if(f){t.file=f.name;stopPlay();t.phase='empty';R.transcribe.status='none';route();toast('Prototype does not read audio. Sample transcript will be used.')}};
+ $('#auGo').onclick=()=>{stopPlay();t.phase='loading';t.pos=0;t.fixes=0;route();let p=0;const iv=setInterval(()=>{p+=12;const b=$('#trBar');if(b)b.style.width=Math.min(p,100)+'%';if(p>=100){clearInterval(iv);t.segs=SAMPLES[t.sample].segs.map(g=>[...g]);t.phase='done';setStatus('transcribe','ai');route()}},180)};
+ const cp=$('#trCopyT');if(cp)cp.onclick=()=>copy($$('.tr-seg').map(r=>`[${$('.ts',r).textContent}] ${$('.spk input',r).value}: ${$('.txt',r).innerText}`).join('\n'));
+ if(t.phase==='done'){
+  const dur=DURS[t.sample],seek=s=>{t.pos=Math.max(0,Math.min(dur,s));updatePlay()};
+  $('#auPlay').onclick=()=>{if(t.playing){stopPlay()}else{if(t.pos>=dur)t.pos=0;t.playing=true;playTimer=setInterval(()=>{t.pos+=.5;if(t.pos>=dur){t.pos=dur;stopPlay();const b=$('#auPlay');if(b)b.textContent='Play'}updatePlay()},500)}$('#auPlay').textContent=t.playing?'Pause':'Play'};
+  $('#wave').onclick=e=>{const r=e.currentTarget.getBoundingClientRect();seek((e.clientX-r.left)/r.width*dur)};
+  $('#wave').onkeydown=e=>{if(e.key==='ArrowRight')seek(t.pos+5);if(e.key==='ArrowLeft')seek(t.pos-5)};
+  $$('[data-seek]').forEach(b=>b.onclick=()=>seek(+b.dataset.seek));
+  const fixed=new Set();
+  $$('[data-seg]').forEach(el=>{el.oninput=()=>{const i=+el.dataset.seg;t.segs[i][2]=el.innerHTML;t.segs[i][3]=true;if(!fixed.has(i)){fixed.add(i);t.fixes++}markEdited('transcribe');updateCount()};
+   el.onclick=e=>{const l=e.target.closest('.low');if(l){l.replaceWith(...l.childNodes);t.segs[+el.dataset.seg][2]=el.innerHTML;markEdited('transcribe');updateCount()}};
+   $$('.low',el).forEach(l=>l.title='Click to mark as checked')});
+  $$('[data-spk]').forEach(inp=>inp.onchange=()=>{const i=+inp.dataset.spk,old=t.segs[i][1],nw=inp.value.trim()||old;t.segs.forEach(g=>{if(g[1]===old)g[1]=nw});markEdited('transcribe');$$('[data-spk]').forEach(x=>{x.value=t.segs[+x.dataset.spk][1]})});
+  updatePlay();updateCount();
+ }
+ renderReview('transcribe');
+}
+Object.values(SAMPLES).forEach(s=>s.segs.forEach(g=>{g[2]=g[2].replace(/<l>/g,'<span class="low">').replace(/<\/l>/g,'</span>')}));
+/* ---------- Draft ---------- */
+const TONES={neutral:'Neutral news',explain:'Explanatory',community:'Community-focused'};
+const LEDES={
+ neutral:'Traders at Mbare Musika say the new vending bays are not finished, although they have been told to begin moving, according to the Mbare Traders Forum.',
+ explain:'Harare City Council has set a timetable for traders to move into new vending bays at Mbare Musika, but traders say the site is not ready. Here is what each side has said so far.',
+ community:'For traders at Mbare Musika, the question this week is simple: when can they move, and will the new bays be ready?'};
+const HEADS=['Mbare traders say new vending bays are not ready','Council and Mbare traders differ over readiness of new vending bays','Mbare Musika traders ask for written date for bay completion'];
+const FREFS=['S2','S3','S3','S4'];
+function buildDraft(d){
+ const paras=[[LEDES[d.tone],['S1','S2']]];
+ d.facts.filter(f=>f.trim()).forEach((f,i)=>paras.push([f.trim(),[FREFS[i]||'S1']]));
+ paras.push(['[Right of reply: add the council\'s response on roofing and water before this goes further.]',[]]);
+ return {heads:HEADS,paras,verify:[
+  'Roofing and water claims come from the forum chairperson only. The council has not been asked about them (S2).',
+  'Electricity status is unknown. Notes list it as a to-do (S1).',
+  'The forum\'s written request to the council has not been seen by the reporter (S4).',
+  'Bay count and allocation list are not in the source material. Do not state them until confirmed.']};
+}
+function viewDraft(){
+ const d=S.draft,tl=TOOLS[3],o=d.out;
+ let out;
+ if(d.phase==='empty')out=`<div class="empty"><h3>No draft yet</h3><p>Check the facts on the left and press Prepare draft. You get headline options, a body with source references, and a list of what still needs confirming.</p></div>`;
+ else if(d.phase==='loading')out=`<div class="body">${skel(8)}<div class="note">Putting the draft together…</div></div>`;
+ else out=`<div class="body" style="display:flex;flex-direction:column;gap:16px">
+  <div class="callout">A first draft for you to rewrite. It only uses the facts and sources on the left, and none of it has been verified.</div>
+  <section><div class="lbl" style="margin-bottom:6px">Headline (editable)</div><div class="story" style="font-size:22px;font-weight:700;line-height:1.25"><span class="editable" contenteditable="true" data-edit="draft" id="dHead">${esc(d.headline||o.heads[0])}</span></div>
+  <div class="chips" style="margin-top:8px">${o.heads.map((h,i)=>`<button class="btn sm" type="button" data-head="${i}">Option ${i+1}</button>`).join('')}</div></section>
+  <section class="story"><div class="lbl" style="margin-bottom:6px;font-family:var(--sans)">Body (editable)</div>
+   ${o.paras.map((p,i)=>`<p>${i===0?`<b style="font-family:var(--sans);font-size:13px;letter-spacing:.04em">${esc(d.location.toUpperCase())} · </b>`:''}<span class="editable" contenteditable="true" data-edit="draft">${esc(p[0])}</span>${p[1].map(r=>`<button class="ref" type="button" data-src="${r}">${r}</button>`).join('')}</p>`).join('')}</section>
+  <section><div class="lbl" style="margin-bottom:6px">Needs verification</div><ul class="clean">${o.verify.map(v=>`<li class="row" style="flex-wrap:nowrap;align-items:flex-start"><span class="tag warn">Check</span><span>${esc(v)}</span></li>`).join('')}</ul></section></div>`;
+ return `${head(tl,'draft')}
+ <div class="grid2">
+  <section class="panel"><header><h2>Story inputs</h2><span class="tag src">Your input</span></header><div class="body" style="display:flex;flex-direction:column;gap:14px">
+   <div class="field"><label for="dH">Working headline (optional)</label><input type="text" id="dH" value="${esc(d.headline)}" placeholder="Leave blank for suggestions"></div>
+   <div class="grid2" style="gap:12px"><div class="field"><label for="dL">Location</label><input type="text" id="dL" value="${esc(d.location)}"></div>
+   <div class="field"><label for="dT">Preferred tone</label><select id="dT">${Object.entries(TONES).map(([k,v])=>`<option value="${k}" ${d.tone===k?'selected':''}>${v}</option>`).join('')}</select></div></div>
+   <div class="field"><span class="lbl">Key facts</span><ul class="clean" id="dFacts">${d.facts.map((f,i)=>`<li class="row" style="flex-wrap:nowrap"><input type="text" value="${esc(f)}" data-fact="${i}" aria-label="Fact ${i+1}"><button class="btn sm" type="button" data-rm="${i}" aria-label="Remove fact ${i+1}">Remove</button></li>`).join('')}</ul><div><button class="btn sm" type="button" id="dAdd">Add fact</button></div></div>
+   <div class="field"><label for="dN">Notes and interview excerpts</label><textarea id="dN" rows="8">${esc(d.notes)}</textarea></div>
+   <div class="field"><span class="lbl">Source references</span><ul class="clean" id="srcList">${SOURCES.map(s=>`<li class="row" id="src-${s[0]}" style="flex-wrap:nowrap;align-items:flex-start"><span class="tag src">${s[0]}</span><span>${s[1]}<br><span class="note">${s[2]}</span></span></li>`).join('')}</ul></div>
+   <button class="btn primary" type="button" id="dGo" ${d.phase==='loading'?'disabled':''}>${d.phase==='done'?'Prepare draft again':'Prepare draft'}</button></div></section>
+  <section class="panel ${d.phase==='done'?'ai':''}"><header><h2>First draft</h2>${d.phase==='done'?`${aiTag}<button class="btn sm" type="button" id="dCopy">Copy</button>`:'<span class="tag src">Waiting</span>'}</header>${out}</section>
+ </div><div class="review" id="rev-draft"></div>`;
+}
+function bindDraft(){
+ const d=S.draft,grab=()=>{const g=id=>$(id);if(g('#dH')){d.headline=g('#dH').value;d.location=g('#dL').value;d.tone=g('#dT').value;d.notes=g('#dN').value;d.facts=$$('[data-fact]').map(x=>x.value)}};
+ $('#dAdd').onclick=()=>{grab();d.facts.push('');route();$$('[data-fact]').pop()?.focus()};
+ $$('[data-rm]').forEach(b=>b.onclick=()=>{grab();d.facts.splice(+b.dataset.rm,1);route()});
+ $('#dT').onchange=()=>{grab();if(d.phase==='done')run()};
+ const run=()=>{grab();if(!d.facts.some(f=>f.trim())){toast('Add at least one key fact');return}d.phase='loading';route();setTimeout(()=>{d.out=buildDraft(d);d.phase='done';setStatus('draft','ai');route()},1300)};
+ $('#dGo').onclick=run;
+ $$('[data-head]').forEach(b=>b.onclick=()=>{$('#dHead').textContent=d.out.heads[+b.dataset.head];d.headline=d.out.heads[+b.dataset.head];markEdited('draft')});
+ $$('[data-src]').forEach(b=>b.onclick=()=>{const e=$('#src-'+b.dataset.src);e.scrollIntoView({behavior:'smooth',block:'center'});e.classList.remove('flash');void e.offsetWidth;e.classList.add('flash')});
+ $$('[data-edit="draft"]').forEach(e=>e.oninput=()=>markEdited('draft'));
+ const cp=$('#dCopy');if(cp)cp.onclick=()=>copy($('#dHead').innerText+'\n\n'+$$('[data-edit="draft"]').slice(1).map(x=>x.innerText).join('\n\n'));
+ renderReview('draft');
+}
+/* ---------- Review queue ---------- */
+function viewQueue(){
+ const tl=TOOLS[4],ids=['summarise','translate','transcribe','draft'],any=ids.some(i=>R[i].status!=='none');
+ return `<div class="head"><div><h1>${tl.title}</h1><p>${tl.sub}</p></div></div>
+ <div class="callout">Nothing here is published. "Checked by a person" means a named reviewer finished the checklist. The system itself checks nothing.</div>
+ ${any?'':`<div class="panel"><div class="empty"><h3>Nothing to check yet</h3><p>Run any tool and its result will be listed here with its status.</p><a class="btn primary" href="#summarise">Start with a summary</a></div></div>`}
+ <ul class="clean">${ids.map(id=>{const t=TOOLS.find(x=>x.id===id),r=R[id];return `<li class="q-item"><div><b>${t.title}</b><div class="note">${r.status==='ready'?`Checked by ${esc(r.reviewer)} at ${r.signed}`:r.status==='none'?'No output yet':`${r.checks.filter(Boolean).length} of ${r.checks.length} items ticked`}</div></div><span class="status ${r.status==='ready'?'ready':r.status==='none'?'':'ai'}" style="${r.status==='none'?'background:var(--sunk);color:var(--muted)':''}">${statusLabel(r.status)}</span><a class="btn sm" href="#${id}">Open</a></li>`}).join('')}</ul>`;
+}
+/* ---------- router ---------- */
+const VIEWS={summarise:[viewSummarise,bindSummarise],translate:[viewTranslate,bindTranslate],transcribe:[viewTranscribe,bindTranscribe],draft:[viewDraft,bindDraft],queue:[viewQueue,()=>{}]};
+function route(){
+ const id=VIEWS[location.hash.slice(1)]?location.hash.slice(1):'summarise';
+ const y=window.scrollY;
+ $('#view').innerHTML=`<div style="display:flex;flex-direction:column;gap:18px">${VIEWS[id][0]()}</div>`;
+ VIEWS[id][1]();refreshNav();window.scrollTo(0,y);
+}
+let lastId=null;
+window.addEventListener('hashchange',()=>{stopPlay();route();window.scrollTo(0,0)});
+const toggleTheme=()=>{const r=document.documentElement,dark=r.dataset.theme?r.dataset.theme==='dark':matchMedia('(prefers-color-scheme:dark)').matches;r.dataset.theme=dark?'light':'dark'};
+$('#themeBtn').onclick=toggleTheme;$('#mdate').textContent='Harare desk · '+new Date().toLocaleDateString('en-GB',{weekday:'long',day:'numeric',month:'long'});
+route();
+</script>
+
+</body></html>
